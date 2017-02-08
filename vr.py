@@ -4,7 +4,12 @@
 import cv2
 import numpy
 import math
+import time
+from networktables import NetworkTable
 
+# To see messages from networktables, you must setup logging
+import logging
+logging.basicConfig(level=logging.DEBUG)
 
 class GripPipeline:
     """
@@ -47,14 +52,27 @@ class GripPipeline:
 
 
 # setup the camera 
-#Capture = cv2.VideoCapture(0)
-#Capture.set(10, 0.1);
-#Capture.set(11, 0.1);
-#Capture.set(12, 0.1);
+Capture = cv2.VideoCapture(0)
+Capture.set(10, 0.1);
+Capture.set(11, 0.1);
+Capture.set(12, 0.1);
 
 # setup the GRIP pipeline 
 pipe = GripPipeline()
 
+# setup the network tables 
+NetworkTable.setIPAddress("10.23.95.2") # robot rio IP
+NetworkTable.setClientMode()
+NetworkTable.initialize()
+
+table = NetworkTable.getTable("SmartDashboard")
+table.putNumber('cX',0)
+table.putNumber('cY',0)
+
+cXone = 0
+cYone = 0
+cXtwo = 0
+cYtwo = 0
 
 # this processes images until the esc is pressed. 
 while True:
@@ -62,8 +80,8 @@ while True:
     cntsDetected=0;
     
     # get the image to be processed from the webcam 
-    frame = cv2.imread("./ImgCap/img5.jpg")
-    #ret_vaule, frame = Capture.read();
+    #frame = cv2.imread("./ImgCap/img4.jpg")
+    ret_vaule, frame = Capture.read();
 
     # retrieve the ratio of the image from the webcam    
     ratio = frame.shape[0];
@@ -81,22 +99,22 @@ while True:
     for c in cnts:
             # this simplifies the detected contours to a more processable state
             peri = cv2.arcLength(c, True)
-	    approx = cv2.approxPolyDP(c, 0.04 * peri, True)
+            approx = cv2.approxPolyDP(c, 0.04 * peri, True)
 	    
             # check if the contours have between 4 and 6 vertices
             # NOTE: Yes, a pure rectangle only has 4 vertices. This had to be changed
             # to detect contours with 6 vertices also because sometimes it would drop
             # the rectangles we wanted to detect. I assume this was due to the the
             # simlification step not being perfect.
-	    if len(approx) >= 4 and len(approx) <= 6 :
+            if len(approx) >= 4 and len(approx) <= 6 :
                 # once a rectangle is detected get its approximated dimensions 
                 (x, y, w, h) = cv2.boundingRect(approx)
                 # calculate the ratio of its height to its width
-		hw = h / float(w)
+                hw = h / float(w)
 
                 # This checks if the calculated ratio is within the ratio
                 # of the target (filters out extraneous rectangles).
-		if hw >= 1.4 and hw <= 2.9:
+                if hw >= 1.4 and hw <= 2.9:
                     # add to the total number of rectangles found 
                     cntsDetected = cntsDetected + 1;
 
@@ -108,24 +126,35 @@ while True:
 
                     # this puts the contours and their centers on the image 
                     m = cv2.moments(c)
-                    cv2.circle(frame, (int(m['m10']/m['m00']), int(m['m01']/m['m00'])), 1, (0,0,255))
+                    try:
+                        cv2.circle(frame, (int(m['m10']/m['m00']), int(m['m01']/m['m00'])), 1, (0,0,255))
+                    except:
+                        pass
                     cv2.drawContours(frame, [c], -1, (0, 255, 0), 2)
                     
 
     # check if the right number of contours are detected. If so calculate the
     # center of the two rectangles and draw that point on the image 
     if cntsDetected == 2:
-        cXone = int(cntOneMoment['m10']/cntOneMoment['m00'])
-        cYone = int(cntOneMoment['m01']/cntOneMoment['m00'])
-        cXtwo = int(cntTwoMoment['m10']/cntTwoMoment['m00'])
-        cYtwo = int(cntTwoMoment['m01']/cntTwoMoment['m00'])
+        try:    
+            cXone = int(cntOneMoment['m10']/cntOneMoment['m00'])
+            cYone = int(cntOneMoment['m01']/cntOneMoment['m00'])
+            cXtwo = int(cntTwoMoment['m10']/cntTwoMoment['m00'])
+            cYtwo = int(cntTwoMoment['m01']/cntTwoMoment['m00'])
+        except:
+            pass
 
         XcenterGoal = int((cXone + cXtwo) / 2)
         YcenterGoal = int((cYone + cYtwo) / 2)
 
         cv2.circle(frame, (int(XcenterGoal), int(YcenterGoal)), 1, (0,255,0),2)
+
+        table.putNumber('cX',XcenterGoal)
+        table.putNumber('cY',YcenterGoal)
         
     else:
+        table.putNumber('cX',0)
+        table.putNumber('cY',0)
         cv2.putText(frame, str(cntsDetected) +" detected", (5,470),
                     cv2.FONT_HERSHEY_DUPLEX, 0.8 , (0,128,255),2)
 
