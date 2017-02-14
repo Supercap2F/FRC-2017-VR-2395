@@ -61,11 +61,12 @@ Capture.set(12, 0.1);
 pipe = GripPipeline()
 
 # setup the network tables 
-NetworkTable.setIPAddress("10.23.95.2") # robot rio IP
-NetworkTable.setClientMode()
-NetworkTable.initialize()
+#NetworkTable.setIPAddress("10.23.95.2") # robot rio IP
+#NetworkTable.setClientMode()
+NetworkTable.initialize(server="10.23.95.2")
 
 table = NetworkTable.getTable("SmartDashboard")
+
 table.putNumber('cX',0)
 table.putNumber('cY',0)
 
